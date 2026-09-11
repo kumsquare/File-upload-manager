@@ -4,9 +4,14 @@ import type { UploadFile } from "../../types/upload";
 interface UploadListProps {
   files: UploadFile[];
   onCancelUpload: (uploadId: string) => void;
+  onRetryUpload: (upload: UploadFile) => void;
 }
 
-const UploadList = ({ files, onCancelUpload }: UploadListProps) => {
+const UploadList = ({ 
+  files, 
+  onCancelUpload, 
+  onRetryUpload 
+}: UploadListProps) => {
   if (files.length === 0) {
     return null;
   }
@@ -32,6 +37,7 @@ const UploadList = ({ files, onCancelUpload }: UploadListProps) => {
             key={file.id}
             upload={file}
             onCancelUpload={onCancelUpload}
+            onRetryUpload={onRetryUpload}
           />
         ))}
       </div>

@@ -1,6 +1,7 @@
 import {
   CheckCircle2,
   File,
+  RotateCcw,
   X,
   XCircle,
 } from "lucide-react";
@@ -10,9 +11,14 @@ import type { UploadFile } from "../../types/upload";
 interface UploadItemProps {
   upload: UploadFile;
   onCancelUpload: (uploadId: string) => void;
+  onRetryUpload: (upload: UploadFile) => void;
 }
 
-const UploadItem = ({ upload, onCancelUpload }: UploadItemProps) => {
+const UploadItem = ({ 
+  upload, 
+  onCancelUpload, 
+  onRetryUpload 
+}: UploadItemProps) => {
   const formatFileSize = (size: number) => {
     if (size < 1024) {
       return `${size} B`;
@@ -77,7 +83,7 @@ const UploadItem = ({ upload, onCancelUpload }: UploadItemProps) => {
                 Cancel
               </button>
             )}
-            
+
             {/* Status Icon */}
             {upload.status === "completed" && (
               <CheckCircle2 className="size-5 shrink-0 text-green-500" />
@@ -85,6 +91,10 @@ const UploadItem = ({ upload, onCancelUpload }: UploadItemProps) => {
 
             {upload.status === "failed" && (
               <XCircle className="size-5 shrink-0 text-red-500" />
+            )}
+
+            {upload.status === "cancelled" && (
+              <X className="size-5 shrink-0 text-gray-400" />
             )}
           </div>
 
@@ -127,8 +137,18 @@ const UploadItem = ({ upload, onCancelUpload }: UploadItemProps) => {
                 <span>Completed</span>
               )}
             </div>
-          </div>
 
+            {upload.status === "failed" && (
+                <button
+                  type="button"
+                  onClick={() => onRetryUpload(upload)}
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
+                >
+                  <RotateCcw className="size-4" />
+                  Retry
+                </button>
+              )}
+          </div>
         </div>
       </div>
     </div>

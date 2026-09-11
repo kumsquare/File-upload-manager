@@ -8,24 +8,44 @@ import {simulateUpload} from "../utils/upload-simulator";
 const Home = () => {
   const [uploads, setUploads] = useState<UploadFile[]>([]);
   const uploadControllers = useRef<Map<string, AbortController>>(new Map());
+  const MAX_CONCURRENT_UPLOADS = 3;
+  const activeUploads = useRef(0);
+  const uploadQueue = useRef<UploadFile[]>([]);
   const handleFilesSelected = (files: File[]) => {
-  const newUploads: UploadFile[] = files.map((file) => ({
-    id: crypto.randomUUID(),
-    file,
-    name: file.name,
-    size: file.size,
-    progress: 0,
-    status: "pending",
-  }));
+    const newUploads: UploadFile[] = files.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      name: file.name,
+      size: file.size,
+      progress: 0,
+      status: "pending",
+      uploadedChunks: 0,
+      totalChunks: Math.max(1, Math.ceil(file.size / (1024 * 1024))), // 1 MB chunk size
+    }));
 
-  setUploads((previous) => [
-    ...previous,
-    ...newUploads,
+    setUploads((previous) => [
+      ...previous,
+      ...newUploads,
     ]);
+    uploadQueue.current.push(...newUploads);
+    processUploadQueue();
+ };
 
-    newUploads.forEach((upload) => {
+  const processUploadQueue = () => {
+    while (
+      activeUploads.current < MAX_CONCURRENT_UPLOADS &&
+      uploadQueue.current.length > 0
+    ) {
+      const upload = uploadQueue.current.shift();
+
+      if (!upload) {
+        return;
+      }
+
+      activeUploads.current += 1;
+
       startUpload(upload);
-    });
+    }
   };
 
   const startUpload = async (upload: UploadFile) => {
@@ -45,6 +65,7 @@ const Home = () => {
 
     try {
       await simulateUpload(upload.file, {
+        startChunk: upload.uploadedChunks,
         signal: controller.signal,
         onProgress: (progress) => {
           setUploads((previous) =>
@@ -78,7 +99,7 @@ const Home = () => {
           item.id === upload.id
             ? {
                 ...item,
-                status: "failed",
+                status: "cancelled",
                 error:
                   error instanceof Error
                     ? error.message
@@ -105,12 +126,34 @@ const Home = () => {
       } 
     } finally {
         uploadControllers.current.delete(upload.id);
+        activeUploads.current -= 1;
+        processUploadQueue();
       }
     }
 
   const handleCancelUpload = (uploadId: string) => {
     const controller = uploadControllers.current.get(uploadId);
     controller?.abort();
+  };
+
+  const handleRetryUpload = (upload: UploadFile) => {
+    const retryUpload = {
+      ...upload,
+      status: "pending" as const,
+      error: undefined,
+    };
+
+    setUploads((previous) =>
+      previous.map((item) =>
+        item.id === upload.id
+          ? retryUpload
+          : item
+      )
+    );
+
+    uploadQueue.current.push(retryUpload);
+
+    processUploadQueue();
   };
 
   return (
@@ -154,7 +197,7 @@ const Home = () => {
             </div>
 
           <UploadZone onFilesSelected={handleFilesSelected} />
-          <UploadList files={uploads} onCancelUpload={handleCancelUpload}/>
+          <UploadList files={uploads} onCancelUpload={handleCancelUpload} onRetryUpload={handleRetryUpload} />
 
           {/* Features */}
           <div className="mt-16 flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-gray-500">

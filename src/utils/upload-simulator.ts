@@ -1,41 +1,76 @@
 export interface UploadSimulatorOptions {
   onProgress: (progress: number) => void;
+  onChunkUploaded?: (uploadedChunks: number) => void;
   signal?: AbortSignal;
+  startChunk?: number;
 }
 
 export const simulateUpload = (
   _file: File,
   options: UploadSimulatorOptions
 ): Promise<void> => {
-  const { onProgress, signal } = options;
+  const { 
+    onProgress, 
+    onChunkUploaded,
+    signal,
+    startChunk=0,
+  } = options;
 
   return new Promise((resolve, reject) => {
-    let progress = 0;
+    const CHUNK_SIZE = 1024 * 1024; // 1 MB
 
-    const interval = setInterval(() => {
+    const totalChunks = Math.max(
+      1,
+      Math.ceil(_file.size / CHUNK_SIZE)
+    );
+
+    let uploadedChunks = startChunk;
+
+    const uploadNextChunk = () => {
       if (signal?.aborted) {
-        clearInterval(interval);
         reject(new Error("Upload cancelled"));
         return;
       }
 
-      progress += Math.floor(Math.random() * 10) + 5;
-
-      if (progress >= 100) {
-        progress = 100;
-      }
-
-      onProgress(progress);
-
-      if (progress === 100) {
-        clearInterval(interval);
+      if (uploadedChunks >= totalChunks) {
         resolve();
+        return;
       }
-    }, 300);
+      
+      const uploadTime = Math.floor(Math.random() * 500) + 500;
 
-    signal?.addEventListener("abort", () => {
-      clearInterval(interval);
-      reject(new Error("Upload cancelled"));
-    });
+      setTimeout(() => {
+        if (signal?.aborted) {
+          reject(new Error("Upload cancelled"));
+          return;
+        }
+
+        const shouldFail = Math.random() < 0.2;
+
+        if (shouldFail) {
+          reject(new Error("Upload failed. Please try again."));
+          return;
+        }
+
+        uploadedChunks += 1;
+
+        onChunkUploaded?.(uploadedChunks);
+
+        const progress = Math.round(
+          (uploadedChunks / totalChunks) * 100
+        );
+
+        onProgress(progress);
+
+        if (uploadedChunks === totalChunks) {
+          resolve();
+          return;
+        }
+
+        uploadNextChunk();
+      }, uploadTime);
+    };
+
+    uploadNextChunk();
   });
 };
